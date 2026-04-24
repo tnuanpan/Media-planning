@@ -120,10 +120,41 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 """, unsafe_allow_html=True)
 
 # ── API Keys ───────────────────────────────────────────────
-YOUTUBE_API_KEY = ""
+YOUTUBE_API_KEY = "AIzaSyDL8BtNjTpA1qjVPCI5RpbcQfn61TMiGU0"
 META_ACCESS_TOKEN = ""
 IG_USER_ID = ""
 FB_PAGE_ID = ""
+
+# ── YouTube API ────────────────────────────────────────────
+SACCADHIKO_CHANNEL_ID = "UCnYIX3wHxACEHsj5ApkxJ-w"
+
+@st.cache_data(ttl=3600)
+def get_youtube_stats(channel_id, api_key):
+    try:
+        from googleapiclient.discovery import build
+        yt = build("youtube", "v3", developerKey=api_key)
+        res = yt.channels().list(part="statistics,snippet", id=channel_id).execute()
+        s = res["items"][0]["statistics"]
+        return {
+            "subscribers": int(s.get("subscriberCount", 0)),
+            "views": int(s.get("viewCount", 0)),
+            "videos": int(s.get("videoCount", 0)),
+        }
+    except Exception:
+        return None
+
+@st.cache_data(ttl=3600)
+def get_youtube_top_videos(channel_id, api_key, max_results=5):
+    try:
+        from googleapiclient.discovery import build
+        yt = build("youtube", "v3", developerKey=api_key)
+        search = yt.search().list(
+            part="snippet", channelId=channel_id,
+            order="viewCount", maxResults=max_results, type="video"
+        ).execute()
+        return [{"title": i["snippet"]["title"][:60], "วันที่": i["snippet"]["publishedAt"][:10]} for i in search["items"]]
+    except Exception:
+        return []
 
 # ── Google Trends ──────────────────────────────────────────
 @st.cache_data(ttl=3600)
@@ -187,12 +218,18 @@ if page == "Dashboard":
     st.markdown('<div class="section-title">Media Orchestrator</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-sub">ภาพรวมทุกช่องทาง — Saccadhiko</div>', unsafe_allow_html=True)
 
+    # ดึงข้อมูล YouTube จริง
+    yt_data = get_youtube_stats(SACCADHIKO_CHANNEL_ID, YOUTUBE_API_KEY) if YOUTUBE_API_KEY else None
+    yt_subs = f"{yt_data['subscribers']:,}" if yt_data else "12,500"
+    yt_views = f"{yt_data['views']:,}" if yt_data else "—"
+    yt_label = "🟢 Live" if yt_data else "Mock"
+
     c1, c2, c3, c4 = st.columns(4)
     cards = [
-        ("YouTube Subscribers", "12,500", "+320", True),
+        ("YouTube Subscribers", yt_subs, yt_label, True),
         ("Instagram Followers", "26,900", "+1,200", True),
         ("Facebook Fans", "34,000", "+450", True),
-        ("Avg Engagement", "4.7%", "-0.2%", False),
+        ("YouTube Total Views", yt_views, yt_label, True),
     ]
     for col, (label, val, delta, pos) in zip([c1, c2, c3, c4], cards):
         delta_class = "metric-delta-pos" if pos else "metric-delta-neg"
@@ -225,23 +262,35 @@ if page == "Dashboard":
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_right:
-        st.markdown("""
+        yt_subs_num = yt_data['subscribers'] if yt_data else 12500
+        total = max(yt_subs_num, 26900, 34000)
+        yt_pct = int(yt_subs_num / total * 100)
+        st.markdown(f"""
         <div class="glass">
-            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:16px;">Reach by Channel</div>
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:16px;">Followers by Channel</div>
             <div class="progress-wrap">
-                <div class="progress-label"><span style="color:#ccc">YouTube</span><span style="color:#fff;font-family:monospace">12,500</span></div>
-                <div class="progress-track"><div class="progress-fill" style="width:25%;background:#ffb596"></div></div>
+                <div class="progress-label"><span style="color:#ccc">YouTube</span><span style="color:#fff;font-family:monospace">{yt_subs_num:,}</span></div>
+                <div class="progress-track"><div class="progress-fill" style="width:{yt_pct}%;background:#ffb596"></div></div>
             </div>
             <div class="progress-wrap">
                 <div class="progress-label"><span style="color:#ccc">Instagram</span><span style="color:#fff;font-family:monospace">26,900</span></div>
-                <div class="progress-track"><div class="progress-fill" style="width:55%;background:#f9b89d"></div></div>
+                <div class="progress-track"><div class="progress-fill" style="width:79%;background:#f9b89d"></div></div>
             </div>
             <div class="progress-wrap">
                 <div class="progress-label"><span style="color:#ccc">Facebook</span><span style="color:#fff;font-family:monospace">34,000</span></div>
-                <div class="progress-track"><div class="progress-fill" style="width:70%;background:#7ad2f6"></div></div>
+                <div class="progress-track"><div class="progress-fill" style="width:100%;background:#7ad2f6"></div></div>
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+    # Top Videos
+    if YOUTUBE_API_KEY:
+        videos = get_youtube_top_videos(SACCADHIKO_CHANNEL_ID, YOUTUBE_API_KEY)
+        if videos:
+            st.markdown('<div class="glass">', unsafe_allow_html=True)
+            st.markdown('<div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:12px;text-transform:uppercase;letter-spacing:0.05em;">🎬 Top Videos</div>', unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame(videos), use_container_width=True, hide_index=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Followers ──────────────────────────────────────────────
 elif page == "ผู้ติดตาม":
