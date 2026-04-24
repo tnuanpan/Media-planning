@@ -4,49 +4,126 @@ import pandas as pd
 from datetime import datetime, timedelta
 import random
 
-st.set_page_config(page_title="Media Planning — Saccadhiko", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Saccadhiko | Media Planning", page_icon="📊", layout="wide")
 
-# ── API Keys (ใส่ key จริงตรงนี้) ─────────────────────────
-YOUTUBE_API_KEY = ""   # ← ใส่ YouTube Data API v3 key
-META_ACCESS_TOKEN = "" # ← ใส่ Meta Graph API token
-IG_USER_ID = ""        # ← ใส่ Instagram Business Account ID
-FB_PAGE_ID = ""        # ← ใส่ Facebook Page ID
+# ── Global CSS (design จาก HTML) ───────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
 
-# ── YouTube Data API ───────────────────────────────────────
-def get_youtube_channel_stats(channel_id, api_key):
-    try:
-        from googleapiclient.discovery import build
-        youtube = build("youtube", "v3", developerKey=api_key)
-        res = youtube.channels().list(part="statistics,snippet", id=channel_id).execute()
-        item = res["items"][0]
-        stats = item["statistics"]
-        return {
-            "name": item["snippet"]["title"],
-            "subscribers": int(stats.get("subscriberCount", 0)),
-            "views": int(stats.get("viewCount", 0)),
-            "videos": int(stats.get("videoCount", 0)),
-        }
-    except Exception as e:
-        return None
+html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 
-def get_youtube_top_videos(channel_id, api_key, max_results=5):
-    try:
-        from googleapiclient.discovery import build
-        youtube = build("youtube", "v3", developerKey=api_key)
-        search = youtube.search().list(
-            part="snippet", channelId=channel_id,
-            order="viewCount", maxResults=max_results, type="video"
-        ).execute()
-        videos = []
-        for item in search.get("items", []):
-            videos.append({
-                "title": item["snippet"]["title"],
-                "published": item["snippet"]["publishedAt"][:10],
-                "video_id": item["id"]["videoId"],
-            })
-        return videos
-    except Exception:
-        return []
+/* Hide default streamlit header/footer */
+#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding-top: 1.5rem !important; padding-bottom: 2rem !important; }
+
+/* Glass card */
+.glass {
+    backdrop-filter: blur(20px);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    position: relative;
+}
+.glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(255,255,255,0.02)) border-box;
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+/* Metric card */
+.metric-card {
+    backdrop-filter: blur(20px);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: left;
+}
+.metric-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #a0908a;
+    margin-bottom: 8px;
+}
+.metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+}
+.metric-delta-pos { font-size: 12px; font-weight: 700; color: #f9b89d; }
+.metric-delta-neg { font-size: 12px; font-weight: 700; color: #ffb4ab; }
+.metric-sub { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Section title */
+.section-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+}
+.section-sub {
+    font-size: 14px;
+    color: #a0908a;
+    margin-bottom: 24px;
+}
+
+/* Status badge */
+.badge-live {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(249,184,157,0.1); border-radius: 99px;
+    padding: 3px 10px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; color: #f9b89d; letter-spacing: 0.05em;
+}
+.badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #f9b89d;
+    box-shadow: 0 0 8px rgba(249,184,157,0.8); display: inline-block; }
+.badge-warn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,180,171,0.1); border-radius: 99px;
+    padding: 3px 10px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; color: #ffb4ab; letter-spacing: 0.05em;
+}
+
+/* Progress bar */
+.progress-wrap { margin-bottom: 18px; }
+.progress-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+.progress-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 99px; }
+
+/* Tab override */
+.stTabs [data-baseweb="tab-list"] { gap: 4px; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 4px; }
+.stTabs [data-baseweb="tab"] { border-radius: 6px; color: #a0908a; font-size: 13px; font-weight: 600; }
+.stTabs [aria-selected="true"] { background: rgba(255,181,150,0.15) !important; color: #ffb596 !important; }
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: #0A0A0A !important;
+    border-right: 1px solid rgba(255,255,255,0.06);
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ── API Keys ───────────────────────────────────────────────
+YOUTUBE_API_KEY = ""
+META_ACCESS_TOKEN = ""
+IG_USER_ID = ""
+FB_PAGE_ID = ""
 
 # ── Google Trends ──────────────────────────────────────────
 @st.cache_data(ttl=3600)
@@ -56,149 +133,174 @@ def get_trends(keywords, timeframe="today 3-m", geo="TH"):
         pt = TrendReq(hl="th-TH", tz=420)
         pt.build_payload(keywords, timeframe=timeframe, geo=geo)
         df = pt.interest_over_time()
-        if df.empty:
-            return None
-        return df.drop(columns=["isPartial"], errors="ignore")
+        return None if df.empty else df.drop(columns=["isPartial"], errors="ignore")
     except Exception:
         return None
 
-# ── Meta Graph API ─────────────────────────────────────────
-def get_meta_page_stats(page_id, token):
-    try:
-        import urllib.request, json
-        url = f"https://graph.facebook.com/v19.0/{page_id}?fields=fan_count,name&access_token={token}"
-        with urllib.request.urlopen(url) as r:
-            data = json.loads(r.read())
-        return {"name": data.get("name"), "fans": data.get("fan_count")}
-    except Exception:
-        return None
-
-def get_ig_stats(ig_user_id, token):
-    try:
-        import urllib.request, json
-        url = f"https://graph.facebook.com/v19.0/{ig_user_id}?fields=followers_count,media_count,username&access_token={token}"
-        with urllib.request.urlopen(url) as r:
-            data = json.loads(r.read())
-        return {"username": data.get("username"), "followers": data.get("followers_count"), "media": data.get("media_count")}
-    except Exception:
-        return None
-
-# ── Mock Fallback ──────────────────────────────────────────
-MOCK = {
-    "youtube": {"subscribers": 12500, "views": 85000, "videos": 320},
-    "instagram": {"followers": 26900, "media": 410},
-    "facebook": {"fans": 34000},
-    "competitors": [
-        {"ช่อง": "Saccadhiko", "Subscribers": 12500, "Engagement %": 4.2},
-        {"ช่อง": "Mission to the Moon", "Subscribers": 1200000, "Engagement %": 3.1},
-        {"ช่อง": "Lifeenricher", "Subscribers": 890000, "Engagement %": 3.8},
-    ],
-}
-
-# ── Channel IDs คู่แข่ง (public) ──────────────────────────
-COMPETITOR_CHANNELS = {
-    "Mission to the Moon": "UCd0pUnH7i5CM-Y8xRe7cZVg",
-    "Lifeenricher": "UCuLBFd4xXR_VkBBMrCQFNig",
-}
+# ── Plotly theme ───────────────────────────────────────────
+COLORS = ["#ffb596", "#f9b89d", "#7ad2f6", "#c0c1ff", "#4edea3"]
+PLOT_LAYOUT = dict(
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="Inter", color="#a0908a", size=12),
+    xaxis=dict(gridcolor="rgba(255,255,255,0.05)", linecolor="rgba(255,255,255,0.05)"),
+    yaxis=dict(gridcolor="rgba(255,255,255,0.05)", linecolor="rgba(255,255,255,0.05)"),
+    legend=dict(bgcolor="rgba(0,0,0,0)"),
+    margin=dict(l=0, r=0, t=40, b=0),
+)
 
 # ── Sidebar ────────────────────────────────────────────────
-pages = {
-    "🏠 Dashboard": "dashboard",
-    "👥 ผู้ติดตาม": "followers",
-    "📈 เทรน": "trends",
-    "🔍 คู่แข่ง": "competitors",
-    "📅 วางแผน": "planning",
-    "🎯 แคมเปญ": "campaigns",
-    "📋 รายงาน": "report",
-}
-
 with st.sidebar:
-    st.title("Saccadhiko")
-    st.caption("Media Planning Tool")
-    st.divider()
-    selected = st.radio("เมนู", list(pages.keys()), label_visibility="collapsed")
-    st.divider()
-    has_yt_key = bool(YOUTUBE_API_KEY)
-    has_meta = bool(META_ACCESS_TOKEN)
-    st.caption("🔑 API Status")
-    st.caption(f"{'🟢' if has_yt_key else '🔴'} YouTube API")
-    st.caption(f"{'🟢' if has_meta else '🔴'} Meta API")
-    st.caption("🟢 Google Trends")
+    st.markdown("""
+    <div style="padding: 8px 4px 24px 4px;">
+        <div style="font-size:18px;font-weight:900;color:#fff;letter-spacing:-0.02em;">SACCADHIKO</div>
+        <div style="font-size:10px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:0.1em;margin-top:2px;">Media Planning Tool</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-page = pages[selected]
+    pages = {
+        "Dashboard": "🏠",
+        "ผู้ติดตาม": "👥",
+        "Google Trends": "📈",
+        "คู่แข่ง": "🔍",
+        "Content Calendar": "📅",
+        "แคมเปญ": "🎯",
+        "รายงาน": "📋",
+    }
+    selected = st.radio(
+        "nav", [f"{v}  {k}" for k, v in pages.items()],
+        label_visibility="collapsed"
+    )
+    page = selected.split("  ", 1)[1]
+
+    st.markdown("<div style='margin-top:32px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06)'>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#555;margin-bottom:8px;">API Status</div>
+    <div style="font-size:12px;color:#777;margin:4px 0;">{'🟢' if YOUTUBE_API_KEY else '🔴'} YouTube API</div>
+    <div style="font-size:12px;color:#777;margin:4px 0;">{'🟢' if META_ACCESS_TOKEN else '🔴'} Meta API</div>
+    <div style="font-size:12px;color:#777;margin:4px 0;">🟢 Google Trends</div>
+    """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ── Dashboard ──────────────────────────────────────────────
-if page == "dashboard":
-    st.title("🏠 ภาพรวมทุกช่อง")
+if page == "Dashboard":
+    st.markdown('<div class="section-title">Media Orchestrator</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">ภาพรวมทุกช่องทาง — Saccadhiko</div>', unsafe_allow_html=True)
 
-    yt = MOCK["youtube"]
-    ig = MOCK["instagram"]
-    fb = MOCK["facebook"]
+    c1, c2, c3, c4 = st.columns(4)
+    cards = [
+        ("YouTube Subscribers", "12,500", "+320", True),
+        ("Instagram Followers", "26,900", "+1,200", True),
+        ("Facebook Fans", "34,000", "+450", True),
+        ("Avg Engagement", "4.7%", "-0.2%", False),
+    ]
+    for col, (label, val, delta, pos) in zip([c1, c2, c3, c4], cards):
+        delta_class = "metric-delta-pos" if pos else "metric-delta-neg"
+        col.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{val}</div>
+            <span class="{delta_class}">{delta}</span>
+            <span class="metric-sub"> vs เดือนที่แล้ว</span>
+        </div>""", unsafe_allow_html=True)
 
-    if YOUTUBE_API_KEY:
-        live = get_youtube_channel_stats("UCxxxxxx", YOUTUBE_API_KEY)  # ใส่ channel ID จริง
-        if live:
-            yt = live
+    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    if META_ACCESS_TOKEN and FB_PAGE_ID:
-        fb_live = get_meta_page_stats(FB_PAGE_ID, META_ACCESS_TOKEN)
-        if fb_live:
-            fb = {"fans": fb_live["fans"]}
+    col_left, col_right = st.columns([2, 1])
+    with col_left:
+        months = [(datetime.now() - timedelta(days=30*i)).strftime("%b %Y") for i in range(5, -1, -1)]
+        df = pd.DataFrame({
+            "เดือน": months * 3,
+            "Views": [random.randint(60000, 100000) for _ in months] +
+                     [random.randint(100000, 180000) for _ in months] +
+                     [random.randint(70000, 120000) for _ in months],
+            "ช่อง": ["YouTube"] * 6 + ["Instagram"] * 6 + ["Facebook"] * 6,
+        })
+        fig = px.line(df, x="เดือน", y="Views", color="ช่อง",
+                      markers=True, title="Views รายเดือน",
+                      color_discrete_sequence=COLORS)
+        fig.update_layout(**PLOT_LAYOUT)
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if META_ACCESS_TOKEN and IG_USER_ID:
-        ig_live = get_ig_stats(IG_USER_ID, META_ACCESS_TOKEN)
-        if ig_live:
-            ig = {"followers": ig_live["followers"], "media": ig_live["media"]}
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("YouTube", f"{yt['subscribers']:,}", "Subscribers")
-    col2.metric("Instagram", f"{ig['followers']:,}", "Followers")
-    col3.metric("Facebook", f"{fb['fans']:,}", "Fans")
-
-    if not (YOUTUBE_API_KEY and META_ACCESS_TOKEN):
-        st.info("💡 ใส่ API Key ใน app.py เพื่อดูข้อมูลจริง — ตอนนี้แสดง Mock data")
-
-    months = [(datetime.now() - timedelta(days=30*i)).strftime("%b %Y") for i in range(5, -1, -1)]
-    df = pd.DataFrame({
-        "เดือน": months * 3,
-        "Views": [random.randint(60000, 100000) for _ in months] +
-                 [random.randint(100000, 180000) for _ in months] +
-                 [random.randint(70000, 120000) for _ in months],
-        "ช่อง": ["YouTube"] * 6 + ["Instagram"] * 6 + ["Facebook"] * 6,
-    })
-    fig = px.line(df, x="เดือน", y="Views", color="ช่อง", markers=True, title="Views รายเดือน")
-    st.plotly_chart(fig, use_container_width=True)
+    with col_right:
+        st.markdown("""
+        <div class="glass">
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:16px;">Reach by Channel</div>
+            <div class="progress-wrap">
+                <div class="progress-label"><span style="color:#ccc">YouTube</span><span style="color:#fff;font-family:monospace">12,500</span></div>
+                <div class="progress-track"><div class="progress-fill" style="width:25%;background:#ffb596"></div></div>
+            </div>
+            <div class="progress-wrap">
+                <div class="progress-label"><span style="color:#ccc">Instagram</span><span style="color:#fff;font-family:monospace">26,900</span></div>
+                <div class="progress-track"><div class="progress-fill" style="width:55%;background:#f9b89d"></div></div>
+            </div>
+            <div class="progress-wrap">
+                <div class="progress-label"><span style="color:#ccc">Facebook</span><span style="color:#fff;font-family:monospace">34,000</span></div>
+                <div class="progress-track"><div class="progress-fill" style="width:70%;background:#7ad2f6"></div></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ── Followers ──────────────────────────────────────────────
-elif page == "followers":
-    st.title("👥 วิเคราะห์ผู้ติดตาม")
+elif page == "ผู้ติดตาม":
+    st.markdown('<div class="section-title">👥 วิเคราะห์ผู้ติดตาม</div>', unsafe_allow_html=True)
     if not META_ACCESS_TOKEN:
-        st.warning("🔴 ยังไม่ได้เชื่อม Meta API — แสดง Mock data")
+        st.markdown('<div class="glass"><span class="badge-warn"><span class="badge-dot" style="background:#ffb4ab;box-shadow:0 0 8px rgba(255,180,171,0.8)"></span>ยังไม่ได้เชื่อม Meta API — แสดง Mock data</span></div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     with col1:
         age_df = pd.DataFrame({"กลุ่มอายุ": ["18-24", "25-34", "35-44", "45-54", "55+"], "สัดส่วน": [18, 35, 28, 12, 7]})
-        fig = px.pie(age_df, names="กลุ่มอายุ", values="สัดส่วน", title="อายุผู้ติดตาม")
+        fig = px.pie(age_df, names="กลุ่มอายุ", values="สัดส่วน", title="อายุผู้ติดตาม", hole=0.5,
+                     color_discrete_sequence=COLORS)
+        fig.update_layout(**PLOT_LAYOUT)
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
         st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     with col2:
         gender_df = pd.DataFrame({"เพศ": ["ชาย", "หญิง"], "สัดส่วน": [42, 58]})
-        fig2 = px.pie(gender_df, names="เพศ", values="สัดส่วน", title="เพศผู้ติดตาม")
+        fig2 = px.pie(gender_df, names="เพศ", values="สัดส่วน", title="เพศผู้ติดตาม", hole=0.5,
+                      color_discrete_sequence=COLORS)
+        fig2.update_layout(**PLOT_LAYOUT)
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
         st.plotly_chart(fig2, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    st.divider()
-    st.subheader("3 กลุ่ม Target")
-    c1, c2, c3 = st.columns(3)
-    c1.info("**กลุ่ม A** — 25-34 ปี\nสนใจพัฒนาตัวเอง\nอยากเปลี่ยนแปลงชีวิต")
-    c2.info("**กลุ่ม B** — 35-44 ปี\nมีครอบครัว\nหาความสมดุล")
-    c3.info("**กลุ่ม C** — 18-24 ปี\nนักศึกษา/เริ่มทำงาน\nหาแรงบันดาลใจ")
+    st.markdown("""
+    <div class="glass">
+        <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:16px;text-transform:uppercase;letter-spacing:0.05em;">3 กลุ่ม Target</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+            <div style="background:rgba(255,181,150,0.07);border:1px solid rgba(255,181,150,0.2);border-radius:10px;padding:16px;">
+                <div style="font-size:10px;color:#ffb596;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">กลุ่ม A</div>
+                <div style="font-size:16px;font-weight:700;color:#fff;margin:6px 0;">25–34 ปี</div>
+                <div style="font-size:12px;color:#a0908a;">สนใจพัฒนาตัวเอง<br>อยากเปลี่ยนแปลงชีวิต</div>
+            </div>
+            <div style="background:rgba(122,210,246,0.07);border:1px solid rgba(122,210,246,0.2);border-radius:10px;padding:16px;">
+                <div style="font-size:10px;color:#7ad2f6;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">กลุ่ม B</div>
+                <div style="font-size:16px;font-weight:700;color:#fff;margin:6px 0;">35–44 ปี</div>
+                <div style="font-size:12px;color:#a0908a;">มีครอบครัว<br>หาความสมดุลในชีวิต</div>
+            </div>
+            <div style="background:rgba(192,193,255,0.07);border:1px solid rgba(192,193,255,0.2);border-radius:10px;padding:16px;">
+                <div style="font-size:10px;color:#c0c1ff;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">กลุ่ม C</div>
+                <div style="font-size:16px;font-weight:700;color:#fff;margin:6px 0;">18–24 ปี</div>
+                <div style="font-size:12px;color:#a0908a;">นักศึกษา/เริ่มทำงาน<br>หาแรงบันดาลใจ</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ── Trends ─────────────────────────────────────────────────
-elif page == "trends":
-    st.title("📈 Google Trends")
-    st.success("🟢 ข้อมูลจริงจาก Google Trends")
+elif page == "Google Trends":
+    st.markdown('<div class="section-title">📈 Google Trends</div>', unsafe_allow_html=True)
+    st.markdown('<div class="badge-live"><span class="badge-dot"></span>ข้อมูลจริงจาก Google Trends</div>', unsafe_allow_html=True)
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    keywords_input = st.text_input("คำค้นหา (คั่นด้วยจุลภาค)", "สมาธิ,ธรรมะ,mindfulness,พัฒนาตัวเอง,ความสุข")
-    timeframe = st.selectbox("ช่วงเวลา", ["today 1-m", "today 3-m", "today 12-m"], index=1)
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        keywords_input = st.text_input("คำค้นหา (คั่นด้วยจุลภาค)", "สมาธิ,ธรรมะ,mindfulness,พัฒนาตัวเอง,ความสุข")
+    with col2:
+        timeframe = st.selectbox("ช่วงเวลา", ["today 1-m", "today 3-m", "today 12-m"], index=1)
 
     keywords = [k.strip() for k in keywords_input.split(",") if k.strip()][:5]
 
@@ -206,40 +308,62 @@ elif page == "trends":
         df = get_trends(keywords, timeframe=timeframe)
 
     if df is not None:
-        fig = px.line(df.reset_index(), x="date", y=keywords, title="ความนิยมตามช่วงเวลา (Google Trends)")
+        fig = px.line(df.reset_index(), x="date", y=keywords,
+                      title="ความนิยมตามช่วงเวลา", color_discrete_sequence=COLORS)
+        fig.update_layout(**PLOT_LAYOUT)
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
         st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
         avg = df.mean().sort_values(ascending=False)
-        fig2 = px.bar(x=avg.index, y=avg.values, labels={"x": "คำค้นหา", "y": "ค่าเฉลี่ย"}, title="ความนิยมเฉลี่ย")
+        fig2 = px.bar(x=avg.index, y=avg.values,
+                      labels={"x": "คำค้นหา", "y": "ค่าเฉลี่ย"},
+                      title="ความนิยมเฉลี่ย", color=avg.index,
+                      color_discrete_sequence=COLORS)
+        fig2.update_layout(**PLOT_LAYOUT)
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
         st.plotly_chart(fig2, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.error("ดึงข้อมูลไม่ได้ — ลองใหม่อีกครั้ง")
 
 # ── Competitors ─────────────────────────────────────────────
-elif page == "competitors":
-    st.title("🔍 วิเคราะห์คู่แข่ง")
+elif page == "คู่แข่ง":
+    st.markdown('<div class="section-title">🔍 วิเคราะห์คู่แข่ง</div>', unsafe_allow_html=True)
+    if not YOUTUBE_API_KEY:
+        st.markdown('<div class="glass"><span class="badge-warn"><span class="badge-dot" style="background:#ffb4ab;box-shadow:0 0 8px rgba(255,180,171,0.8)"></span>ยังไม่ได้ใส่ YouTube API Key — แสดง Mock data</span></div>', unsafe_allow_html=True)
 
-    competitors = list(MOCK["competitors"])
+    comp_df = pd.DataFrame([
+        {"ช่อง": "Saccadhiko", "Subscribers": 12500, "Views/เดือน": 85000, "Engagement %": 4.2},
+        {"ช่อง": "Mission to the Moon", "Subscribers": 1200000, "Views/เดือน": 8500000, "Engagement %": 3.1},
+        {"ช่อง": "Lifeenricher", "Subscribers": 890000, "Views/เดือน": 6200000, "Engagement %": 3.8},
+    ])
 
-    if YOUTUBE_API_KEY:
-        st.success("🟢 ดึงข้อมูลจาก YouTube API จริง")
-        for name, cid in COMPETITOR_CHANNELS.items():
-            data = get_youtube_channel_stats(cid, YOUTUBE_API_KEY)
-            if data:
-                for c in competitors:
-                    if c["ช่อง"] == name:
-                        c["Subscribers"] = data["subscribers"]
-    else:
-        st.warning("🔴 ยังไม่ได้ใส่ YouTube API Key — แสดง Mock data")
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        fig = px.bar(comp_df, x="ช่อง", y="Subscribers", color="ช่อง",
+                     title="Subscribers เปรียบเทียบ", color_discrete_sequence=COLORS)
+        fig.update_layout(**PLOT_LAYOUT)
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with col2:
+        fig2 = px.bar(comp_df, x="ช่อง", y="Engagement %", color="ช่อง",
+                      title="Engagement Rate", color_discrete_sequence=COLORS)
+        fig2.update_layout(**PLOT_LAYOUT)
+        st.markdown('<div class="glass">', unsafe_allow_html=True)
+        st.plotly_chart(fig2, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    comp_df = pd.DataFrame(competitors)
+    st.markdown('<div class="glass">', unsafe_allow_html=True)
     st.dataframe(comp_df, use_container_width=True, hide_index=True)
-    fig = px.bar(comp_df, x="ช่อง", y="Subscribers", color="ช่อง", title="Subscribers เปรียบเทียบ")
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Planning ────────────────────────────────────────────────
-elif page == "planning":
-    st.title("📅 Content Calendar")
+elif page == "Content Calendar":
+    st.markdown('<div class="section-title">📅 Content Calendar</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">วางแผนคอนเทนต์รายสัปดาห์ทุกช่องทาง</div>', unsafe_allow_html=True)
+
     weeks = ["สัปดาห์ 1", "สัปดาห์ 2", "สัปดาห์ 3", "สัปดาห์ 4"]
     cal_df = pd.DataFrame({
         "สัปดาห์": weeks,
@@ -247,35 +371,106 @@ elif page == "planning":
         "Instagram": ["Quote ธรรมะ", "Reel สั้น", "Story Poll", "Carousel tips"],
         "Facebook": ["Live ธรรมะ", "Post บทความ", "แชร์คลิป YT", "Community post"],
     })
+    st.markdown('<div class="glass">', unsafe_allow_html=True)
     st.dataframe(cal_df, use_container_width=True, hide_index=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Campaigns ───────────────────────────────────────────────
-elif page == "campaigns":
-    st.title("🎯 3 แคมเปญ สำหรับ 3 กลุ่ม Target")
-    tab1, tab2, tab3 = st.tabs(["แคมเปญ A — 25-34 ปี", "แคมเปญ B — 35-44 ปี", "แคมเปญ C — 18-24 ปี"])
+elif page == "แคมเปญ":
+    st.markdown('<div class="section-title">🎯 Campaign Planning</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">3 แคมเปญ สำหรับ 3 กลุ่ม Target</div>', unsafe_allow_html=True)
+
+    # Stepper
+    st.markdown("""
+    <div class="glass" style="display:flex;align-items:center;gap:24px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:32px;height:32px;border-radius:50%;background:#ffb596;color:#581e00;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">1</div>
+            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#fff;">Definition</span>
+        </div>
+        <div style="height:1px;width:40px;background:rgba(255,255,255,0.1)"></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:32px;height:32px;border-radius:50%;border:1px solid #ffb596;color:#ffb596;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">2</div>
+            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#fff;">Allocation</span>
+        </div>
+        <div style="height:1px;width:40px;background:rgba(255,255,255,0.1)"></div>
+        <div style="display:flex;align-items:center;gap:10px;opacity:0.4;">
+            <div style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,0.4);color:rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">3</div>
+            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Targeting</span>
+        </div>
+        <div style="height:1px;width:40px;background:rgba(255,255,255,0.1)"></div>
+        <div style="display:flex;align-items:center;gap:10px;opacity:0.4;">
+            <div style="width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,0.4);color:rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">4</div>
+            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Launch</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    tab1, tab2, tab3 = st.tabs(["กลุ่ม A — 25-34 ปี", "กลุ่ม B — 35-44 ปี", "กลุ่ม C — 18-24 ปี"])
     with tab1:
-        st.subheader("เปลี่ยนชีวิตด้วยสติ")
-        st.write("- คอนเทนต์: เทคนิคสมาธิที่ใช้ได้จริงในชีวิตประจำวัน")
-        st.write("- ช่องทาง: YouTube (long-form) + Instagram Reels")
-        st.write("- ความถี่: 2 คลิป/สัปดาห์")
+        st.markdown("""
+        <div class="glass">
+            <div style="font-size:18px;font-weight:700;color:#ffb596;margin-bottom:8px;">เปลี่ยนชีวิตด้วยสติ</div>
+            <div style="font-size:13px;color:#ccc;line-height:1.8;">
+                🎯 <b>เป้าหมาย:</b> Brand Awareness + Community Building<br>
+                📹 <b>คอนเทนต์:</b> เทคนิคสมาธิที่ใช้ได้จริงในชีวิตประจำวัน<br>
+                📡 <b>ช่องทาง:</b> YouTube (long-form) + Instagram Reels<br>
+                📅 <b>ความถี่:</b> 2 คลิป/สัปดาห์
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     with tab2:
-        st.subheader("สมดุลชีวิตครอบครัว")
-        st.write("- คอนเทนต์: ธรรมะสำหรับพ่อแม่ + การเลี้ยงลูก")
-        st.write("- ช่องทาง: Facebook Live + YouTube")
-        st.write("- ความถี่: Live 1 ครั้ง/สัปดาห์")
+        st.markdown("""
+        <div class="glass">
+            <div style="font-size:18px;font-weight:700;color:#7ad2f6;margin-bottom:8px;">สมดุลชีวิตครอบครัว</div>
+            <div style="font-size:13px;color:#ccc;line-height:1.8;">
+                🎯 <b>เป้าหมาย:</b> Engagement + Loyalty<br>
+                📹 <b>คอนเทนต์:</b> ธรรมะสำหรับพ่อแม่ + การเลี้ยงลูก<br>
+                📡 <b>ช่องทาง:</b> Facebook Live + YouTube<br>
+                📅 <b>ความถี่:</b> Live 1 ครั้ง/สัปดาห์
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     with tab3:
-        st.subheader("เริ่มต้นด้วยธรรมะ")
-        st.write("- คอนเทนต์: ธรรมะสำหรับคนรุ่นใหม่ สั้น กระชับ")
-        st.write("- ช่องทาง: Instagram + TikTok-style Reels")
-        st.write("- ความถี่: ทุกวัน (short-form)")
+        st.markdown("""
+        <div class="glass">
+            <div style="font-size:18px;font-weight:700;color:#c0c1ff;margin-bottom:8px;">เริ่มต้นด้วยธรรมะ</div>
+            <div style="font-size:13px;color:#ccc;line-height:1.8;">
+                🎯 <b>เป้าหมาย:</b> Reach + Follower Growth<br>
+                📹 <b>คอนเทนต์:</b> ธรรมะสำหรับคนรุ่นใหม่ สั้น กระชับ<br>
+                📡 <b>ช่องทาง:</b> Instagram Reels + Facebook Short<br>
+                📅 <b>ความถี่:</b> ทุกวัน (short-form)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ── Report ──────────────────────────────────────────────────
-elif page == "report":
-    st.title("📋 รายงานสรุปทีม")
-    st.subheader("สรุปเดือนนี้")
-    st.write("- YouTube: +320 subscribers, views 85,000")
-    st.write("- Instagram: +1,200 followers, engagement 6.8%")
-    st.write("- Facebook: +450 followers, views 98,000")
-    st.divider()
-    st.button("📥 Export PDF (เร็วๆ นี้)", disabled=True)
-    st.button("📊 ส่ง Google Sheets (เร็วๆ นี้)", disabled=True)
+elif page == "รายงาน":
+    st.markdown('<div class="section-title">📋 รายงานสรุปทีม</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="glass">
+        <div style="font-size:13px;font-weight:600;color:#fff;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:16px;">สรุปเดือนนี้</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+            <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:14px;">
+                <div style="font-size:10px;color:#ffb596;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">YouTube</div>
+                <div style="font-size:20px;font-weight:700;color:#fff;margin:4px 0;">+320</div>
+                <div style="font-size:11px;color:#777;">Subscribers · 85,000 views</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:14px;">
+                <div style="font-size:10px;color:#f9b89d;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Instagram</div>
+                <div style="font-size:20px;font-weight:700;color:#fff;margin:4px 0;">+1,200</div>
+                <div style="font-size:11px;color:#777;">Followers · 6.8% engagement</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:14px;">
+                <div style="font-size:10px;color:#7ad2f6;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Facebook</div>
+                <div style="font-size:20px;font-weight:700;color:#fff;margin:4px 0;">+450</div>
+                <div style="font-size:11px;color:#777;">Fans · 98,000 views</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.button("📥 Export PDF", disabled=True, use_container_width=True)
+    with col2:
+        st.button("📊 ส่ง Google Sheets", disabled=True, use_container_width=True)
