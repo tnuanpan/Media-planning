@@ -121,7 +121,9 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 
 # ── API Keys ───────────────────────────────────────────────
 YOUTUBE_API_KEY = "AIzaSyDL8BtNjTpA1qjVPCI5RpbcQfn61TMiGU0"
-META_ACCESS_TOKEN = ""
+META_APP_ID = "1663383491463176"
+META_APP_SECRET = "a6ea7b79045d5a3b3c8a5406a0b33eb2"
+META_ACCESS_TOKEN = f"{META_APP_ID}|{META_APP_SECRET}"
 IG_USER_ID = ""
 FB_PAGE_ID = ""
 
@@ -224,11 +226,19 @@ if page == "Dashboard":
     yt_views = f"{yt_data['views']:,}" if yt_data else "—"
     yt_label = "🟢 Live" if yt_data else "Mock"
 
+    # Manual input สำหรับ Meta (sidebar)
+    with st.sidebar:
+        st.markdown("<div style='margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.06)'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#555;margin-bottom:8px;'>อัปเดต Meta ด้วยตนเอง</div>", unsafe_allow_html=True)
+        ig_followers = st.number_input("Instagram Followers", value=26900, step=100)
+        fb_fans = st.number_input("Facebook Fans", value=34000, step=100)
+        st.markdown("</div>", unsafe_allow_html=True)
+
     c1, c2, c3, c4 = st.columns(4)
     cards = [
         ("YouTube Subscribers", yt_subs, yt_label, True),
-        ("Instagram Followers", "26,900", "+1,200", True),
-        ("Facebook Fans", "34,000", "+450", True),
+        ("Instagram Followers", f"{ig_followers:,}", "Manual", True),
+        ("Facebook Fans", f"{fb_fans:,}", "Manual", True),
         ("YouTube Total Views", yt_views, yt_label, True),
     ]
     for col, (label, val, delta, pos) in zip([c1, c2, c3, c4], cards):
